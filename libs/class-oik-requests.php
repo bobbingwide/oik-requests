@@ -161,6 +161,7 @@ class OIK_requests /* extends OIK_singleton */ {
 		$_POST['_oik_rq_files'] = $this->get_files();
 		$_POST['_oik_rq_hooks'] = $this->get_hooks();
 		
+		
 	  $post_id = wp_insert_post( $post );
 		$this->get_yoastseo( $post_id );
 		return( $post_id );
@@ -191,13 +192,11 @@ class OIK_requests /* extends OIK_singleton */ {
 		bw_trace2( $post, "post" );
 		if ( $post ) {
 			// perhaps we need to update it
+			// We should only update if the option to update is set to true
 			
 		}	else {
 			$this->insert_post();
 		}
-		gob();
-	
-	
 	}
 	/**
 	 * Implements logic to automatically create records for the requests executed in the server.
@@ -227,9 +226,9 @@ class OIK_requests /* extends OIK_singleton */ {
 		 * These need to be paginatable shortcode textarea fields.
 		 * 
 		 */
-		bw_register_field( "_oik_rq_files", "textarea", "Files loaded" ); 
-		bw_register_field( "_oik_rq_hooks", "textarea", "Hooks invoked" );
-		bw_register_field( "_oik_rq_queries", "textarea", "Saved queries" );
+		bw_register_field( "_oik_rq_files", "textarea", "Files loaded", array( '#theme' => false) ); 
+		bw_register_field( "_oik_rq_hooks", "sctextarea", "Hooks invoked", array( '#theme' => false ) );
+		bw_register_field( "_oik_rq_queries", "sctextarea", "Saved queries" );
 		
 		//bw_register_field( "_oik_rq_fileref", "noderef", 	- registered by oik-shortcodes
   
@@ -322,8 +321,13 @@ class OIK_requests /* extends OIK_singleton */ {
 	 */
 	
 	public function get_files() {
-	
-	
+		if ( function_exists( "bw_trace_get_included_files" ) ) {
+
+			$files = bw_trace_get_included_files();
+		} else {
+			$files = null;
+		}
+		return( $files );
 	}
 	
 	
@@ -350,9 +354,13 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * 
 	 */
 	public function run_shutdown() {
-		gob();
-	
+		
+		$admin_urls = array_unique( $this->admin_urls );
+		sort( $admin_urls );
+		$admin_urls = PHP_EOL . implode( PHP_EOL, $admin_urls );
+    bw_trace2( $admin_urls, "admin_urls", false );
 	}
+	
 
 }
  
