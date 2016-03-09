@@ -90,6 +90,7 @@ function oik_requests_register_oik_request() {
 	// $post_type_args['query_var'] = "oik-shortcodes";
 	$post_type_args['supports'] = array( 'title', 'editor', 'excerpt', 'thumbnail', 'revisions', 'author' );
   $post_type_args['has_archive'] = true;
+  $post_type_args['menu_icon'] = 'dashicons-index-card';
   bw_register_post_type( $post_type, $post_type_args );
 	
 }
@@ -211,6 +212,8 @@ function oik_requests_oik_query_autoload_classes( $classes ) {
 function oik_requests_shutdown() {
 	$oik_requests = oik_requests_request();
 	$oik_requests->record_request();
+	
+	//$oik_requests->run_shutdown();
 }
 
 /**
