@@ -1,0 +1,12 @@
+{
+    "name": "bobbingwide/oik-requests",
+    "description": "WP-a2z REQUEST_URIs hooks and files",
+    "type": "wordpress-plugin",
+    "license": "GPLV2+",
+    "authors": [
+        {
+            "name": "Herb Miller",
+            "email": "herb@bobbingwide.com"
+        }
+    ]
+}
