@@ -29,16 +29,22 @@ define( "OIK_REQUESTS_LOADED", "0.0.0" );
 /**
  * Return the OIK_request class
  *
+ * If the classes are being autoloaded can't we simply invoke a general purpose static method
+ * to return the instance of the class?
+ * This will save the number of tiny functions like this
+ *
+ * $class = "OIK_requests";
+ * $instance = $class::instance();
+ * 
+ * 
  *
  */
-function oik_request_request() {
-	$oik_request = OIK_request::instance();
+function oik_requests_request() {
+	$oik_request = OIK_requests::instance();
 	return( $oik_request );
 }
  
 
 } /* endif */
- 
- 
  
  
