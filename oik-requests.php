@@ -75,7 +75,7 @@ function oik_requests_oik_fields_loaded() {
 
 
 /**
- * Register the oik_request post type
+ * Register the 'oik_request' post type
  *
  * 
  */
@@ -88,7 +88,7 @@ function oik_requests_register_oik_request() {
 	$post_type_args['hierarchical'] = true;
 	// Not using query_var for this post type
 	// $post_type_args['query_var'] = "oik-shortcodes";
-	$post_type_args['supports'] = array( 'title', 'editor', 'excerpt', 'thumbnail', 'revisions', 'author' );
+	$post_type_args['supports'] = array( 'title', 'editor', 'excerpt', 'thumbnail', 'revisions', 'author', 'page-attributes' );
   $post_type_args['has_archive'] = true;
   $post_type_args['menu_icon'] = 'dashicons-index-card';
   bw_register_post_type( $post_type, $post_type_args );
@@ -100,7 +100,8 @@ function oik_requests_register_oik_request() {
  * 
  *
  * We don't actually need to register the fields until we know we're going to be dealing 
- * with an "oik_request"
+ * with an "oik_request"... however we haven't quite worked out when we do need them
+ * 
  */
 function oik_requests_register_fields() {
 
