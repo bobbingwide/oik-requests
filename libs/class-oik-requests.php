@@ -78,31 +78,40 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * 
 	 */
 	public function get_uri() {
-		$request_uri = bw_array_get( $_SERVER, 'REQUEST_URI', null );
-		$url = parse_url( $request_uri );
-		$uri = $url['path'];
+		$uri = bw_array_get( $_SERVER, 'REQUEST_URI', null );
 		$uri = $this->strip_siteurl_path( $uri );
-		
+		if ( defined( 'DOING_AJAX') && DOING_AJAX ) {
+			$uri .= "/";
+			$uri .= bw_array_get( $_REQUEST, 'action', null );
+		}
 		return( $uri );
 	}
 	
-	 
 	/** 
 	 * Strip the leading folder information
 	 *
 	 * We expect uri to be prefixed with a /
+	 * It may also contain the sub-directory of the installation e.g. /wordpress/wp-admin
 	 *
-	 * So what do we do for the default request for the home page?
-	 *
+	 * So what do we do for the default request for the home page? Make it a / ?
+	 * 
+	 * @param string $uri - request URI which may contain the query parameters
+	 * @return string the stripped request URI
 	 */
 	public function strip_siteurl_path( $uri ) {
+		$url = parse_url( $uri );
+		$uri = $url['path'];
+		bw_trace2( $url, "url" );
 		$siteurl = site_url();
 		$site_url = parse_url( $siteurl );
 		$strip_path = bw_array_get( $site_url, 'path', null );
-		$strip_path .= "/";
-		bw_trace2( $strip_path, "strip_path" );
-		if ( 0 === strpos( $uri, $strip_path ) ) {
-			$uri = substr( $uri, strlen( $strip_path ) );
+		//$strip_path .= "/";
+		bw_trace2( $strip_path, "strip_path", false );
+		
+		$pos = strpos( $uri, $strip_path );
+		if ( $pos === 0 ) {
+			$len = strlen( $strip_path );
+			$uri = substr( $uri, $len );
 		}
 		return( $uri );
 	}
@@ -128,14 +137,15 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * 
 	 * @return object an "oik_request" post type object
 	 */ 
-	public function get_request_by_name() {
+	public function get_request_by_name( $uri ) {
 		oik_require( "includes/bw_posts.inc" );
 		$atts = array( "post_type" => "oik_request" 
 								 , "meta_key" => "_oik_rq_uri"
-								 , "meta_value" => $this->get_uri()
+								 , "meta_value" => $uri
 								 , "numberposts" => 1
 								 );
 		$post = bw_get_posts( $atts );
+		$post = bw_array_get( $post, 0, null );
 		return( $post );
 	}
 	
@@ -144,14 +154,15 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * 
 	 *  
 	 */
-	public function insert_post() {
-		$uri = $this->get_uri();
+	public function insert_post( $uri, $parent ) {
+		bw_trace2();
 		$post = array( "post_type" => "oik_request" 
 								, "post_title" => $this->get_post_title( $uri )
 								, "post_name" => $uri
 								, "post_content" => $this->get_content()
 								, "post_status" => "publish"
 								, "comment_status" => "closed" 
+								, "post_parent" => $parent
 								); 
 		$_POST['_oik_rq_uri'] = $uri;
 		$_POST['_oik_rq_parms'] = $this->get_query_parms();
@@ -182,13 +193,16 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * @param object $post the post object
 	 */
 	function update_post( $post ) {
-		$_POST['_oik_rq_parms'] = $this->get_query_parms();
+		bw_trace2();
+	
+		//$_POST['_oik_rq_parms'] = $this->get_query_parms();
 		//$_POST['_oik_fileref' ] = $this->get_fileref(); 
 		$_POST['_oik_rq_method'] = $this->get_method();
 		
 		$_POST['_oik_rq_files'] = $this->get_files();
 		$_POST['_oik_rq_hooks'] = $this->get_hooks();
 		$_POST['_oik_rq_queries'] = $this->get_queries();
+		$_POST['_oik_rq_hits'] = $this->get_hits( $post->ID ) +1;
 		wp_update_post( $post );
 		$this->get_yoastseo( $post->ID );
 	}	
@@ -201,32 +215,152 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * 1. Take a snapshot of the current status for files and hooks - must be v. quick
 	 * 2. See if the request has already been recorded
 	 * 3. If not then create a new one
-	 * 4. Else...
+	 * 4. Else update it
 	 * 
 	 * The oik_request consists of:
 	 *
 	 * Field        | Value
 	 * ----------   | --------------
 	 * post_title   | from wp_title? 
-	 * post_parent  | see what we did for oik_files
+	 * post_parent  | similar to oik_files
 	 * post_content |	see get_content()
 	 *
 	 * 
 	 * 
 	 */
 	public function record_request() {
-		$post = $this->get_request_by_name();	
+	
+		$uri = $this->get_uri();
+		$post = $this->get_request_by_name( $uri );	
+		$parent = $this->create_ancestry( $post, $uri );
 		
 		bw_trace2( $post, "post" );
 		if ( $post ) {
 			// perhaps we need to update it
 			// We should only update if the option to update is set to true
+			$post->post_parent = $parent;
 			$this->update_post( $post );
 			
 		}	else {
-			$this->insert_post();
+			$this->insert_post( $uri, $parent );
 		}
 	}
+	
+	/**
+	 * Create the post's parent
+	 * 
+	 * @param string $uri part of the request URI 
+	 */
+	public function create_parent( $uri ) {
+		bw_trace2();
+		$post = $this->get_request_by_name( $uri );
+		$parent = $this->create_ancestry( $post, $uri );
+		if ( !$post ) {
+			$post_id = $this->insert_ancestor( $uri, $parent );	
+		} else {
+			$post_id = $post->ID;
+		}
+		return( $post_id );
+	}
+	
+	/**
+	 * Insert a dummy ancestor for a request
+	 * 
+	 * @param string $uri the part of the path
+	 * @param 
+	 */
+	public function insert_ancestor( $uri, $parent ) {
+		bw_trace2();
+		$post = array( "post_type" => "oik_request" 
+								, "post_title" => $this->get_post_title( $uri )
+								, "post_name" => $uri
+								, "post_content" => $uri
+								, "post_status" => "publish"
+								, "comment_status" => "closed" 
+								, "post_parent" => $parent
+								); 
+		$_POST['_oik_rq_uri'] = $uri;
+		// $_POST['_oik_rq_parms'] = $this->get_query_parms();
+		// $_POST['_oik_fileref' ] = $this->get_fileref(); 
+		// $_POST['_oik_rq_method'] = $this->get_method();
+		
+		//$_POST['_oik_rq_files'] = $this->get_files();
+		//$_POST['_oik_rq_hooks'] = $this->get_hooks();
+		//$_POST['_oik_rq_queries'] = $this->get_queries();
+		
+		
+	  $post_id = wp_insert_post( $post );
+		$this->get_yoastseo( $post_id );
+		return( $post_id );
+	
+	
+	}
+	
+	
+	
+	/**
+	 * Determine the post_parent for an oik_request
+	 *
+	 * Here we will attempt to correct the hierarchy of oik_file posts
+	 * so that they appear nicely structured.
+	 * 
+	 * Assuming we will eventually process every directory
+	 * then we probably only need to handle one parent at a time
+	 * BUT that assumes we'll process a file in each directory in the tree
+	 * 
+	 * Processing depends on the values of the parameters passed
+	 * 
+	 * $post  | $uri 			        | post_parent | Processing
+	 * ------ | -------------     | ----------  | -------------- 
+	 * 0      | filename.ext      | n/a         | The post_parent will be 0
+	 * 0      | path/filename.ext |	n/a         | Find the post_id for dirname( $uri )
+	 * set    | filename.ext      | should be 0 | force it to 0
+	 * set    | path/filename.ext | 0           | Find the post_id for dirname( $uri ) 
+	 *
+	 * @param post|null $post an existing post object or null
+	 * @param string $uri the request_uri 
+	 * @return ID the post_parent ID, which may be 0
+	 */
+	function create_ancestry( $post, $uri ) {
+		//bw_backtrace();
+		//bw_trace2();
+		$post_parent = 0;
+		if ( $post ) {
+			$found_parent = $this->request_should_have_parent( $uri, $post->post_parent );
+		} else {
+			$found_parent = $this->request_should_have_parent( $uri, null );
+		} 
+		if ( null !== $found_parent ) {
+			$post_parent = $found_parent; 
+		} else {
+			$post_parent = $this->create_parent( dirname( $uri ) );
+		}
+		bw_trace2( $post_parent, "post_parent", false, BW_TRACE_DEBUG );
+		return( $post_parent );
+	}
+
+
+
+	/**
+	 * Deterimine the right value for post_parent
+	 *
+	 * @param string $uri - the request URI
+	 * @param ID $current_parent 
+	 * @return found_parent - null when need to find one otherwise the required ID
+	 */
+	function request_should_have_parent( $uri, $current_parent ) {
+		//bw_trace2();
+		$uri = ltrim( $uri, "/" );
+		if ( false === strpos( $uri, "/" ) ) {
+			$found_parent = 0;
+		} elseif ( 0 == $current_parent ) {
+			$found_parent = null;
+		} else {
+			$found_parent = $current_parent;
+		}
+		return( $found_parent );
+	}
+	
 	/**
 	 * Implements logic to automatically create records for the requests executed in the server.
 	 * 
@@ -248,16 +382,17 @@ class OIK_requests /* extends OIK_singleton */ {
 	
 		//add_post_type_support( $post_type, 'publicize' );
 		bw_register_field( "_oik_rq_uri", "text", "Request URI" );
-		bw_register_field( "_oik_rq_parms", "textarea", "Query parameters" );
+		bw_register_field( "_oik_rq_parms", "serialized", "Query parameters" );
 		bw_register_field( "_oik_rq_method", "select", "Request method" );
 		
 		/*
 		 * These need to be paginatable shortcode textarea fields.
 		 * 
 		 */
-		bw_register_field( "_oik_rq_files", "textarea", "Files loaded", array( '#theme' => false) ); 
+		bw_register_field( "_oik_rq_files", "sctextarea", "Files loaded", array( '#theme' => false) ); 
 		bw_register_field( "_oik_rq_hooks", "sctextarea", "Hooks invoked", array( '#theme' => false ) );
 		bw_register_field( "_oik_rq_queries", "sctextarea", "Saved queries" );
+		bw_register_field( "_oik_rq_hits", "numeric", "Hits" );
 		
 		//bw_register_field( "_oik_rq_fileref", "noderef", 	- registered by oik-shortcodes
   
@@ -269,6 +404,7 @@ class OIK_requests /* extends OIK_singleton */ {
 		bw_register_field_for_object_type( "_oik_rq_hooks", $post_type );
 		bw_register_field_for_object_type( "_oik_rq_queries", $post_type );
 		bw_register_field_for_object_type( "_oik_fileref", $post_type );
+		bw_register_field_for_object_type( "_oik_rq_hits", $post_type );
 	}
 	
 	
@@ -282,8 +418,9 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * @return string $post_title
 	 */
 	public function get_post_title( $uri=null ) {
-		$post_title = wp_title();
-    $post_title .= $uri;
+		//$post_title = wp_title( "-" , false );
+		$post_title = $uri;
+    //$post_title .= $uri;
 		return( $post_title );
 	}
 	
@@ -317,6 +454,12 @@ class OIK_requests /* extends OIK_singleton */ {
 	public function get_yoastseo( $id ) {
 		$metadesc = $this->get_post_title();
 		update_post_meta( $id, "_yoast_wpseo_metadesc", $metadesc );
+	}
+	
+	public function get_hits( $id, $increment=0 ) {
+		$hits = get_post_meta( $id, "_oik_rq_hits", true );
+		$hits += $increment;
+		return( $hits );
 	}
 	
 	/**
