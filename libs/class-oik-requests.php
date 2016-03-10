@@ -160,12 +160,40 @@ class OIK_requests /* extends OIK_singleton */ {
 		
 		$_POST['_oik_rq_files'] = $this->get_files();
 		$_POST['_oik_rq_hooks'] = $this->get_hooks();
+		$_POST['_oik_rq_queries'] = $this->get_queries();
 		
 		
 	  $post_id = wp_insert_post( $post );
 		$this->get_yoastseo( $post_id );
 		return( $post_id );
 	}
+	
+	/**
+	 * Update the oik_request post
+	 * 
+	 * We have to decide what we're going to update without doing too many queries.
+	 * When it's all working fine then this may not be all that necessary
+	 * except when something has changed which would cause the results to be different.
+	 * 
+	 * It's the parms that we need to merge with the existing parms
+	 * And the method may also take multiple values: GET, POST, HEAD, etc..
+	 * especially in the wonderful world of the REST API
+   * 
+	 * @param object $post the post object
+	 */
+	function update_post( $post ) {
+		$_POST['_oik_rq_parms'] = $this->get_query_parms();
+		//$_POST['_oik_fileref' ] = $this->get_fileref(); 
+		$_POST['_oik_rq_method'] = $this->get_method();
+		
+		$_POST['_oik_rq_files'] = $this->get_files();
+		$_POST['_oik_rq_hooks'] = $this->get_hooks();
+		$_POST['_oik_rq_queries'] = $this->get_queries();
+		wp_update_post( $post );
+		$this->get_yoastseo( $post->ID );
+	}	
+	
+	
 	
 	/**
 	 * Record the request
@@ -193,6 +221,7 @@ class OIK_requests /* extends OIK_singleton */ {
 		if ( $post ) {
 			// perhaps we need to update it
 			// We should only update if the option to update is set to true
+			$this->update_post( $post );
 			
 		}	else {
 			$this->insert_post();
@@ -334,6 +363,7 @@ class OIK_requests /* extends OIK_singleton */ {
 	/**
 	 * Return the "hooks" shortcode
 	 * 
+	 * @return shortcode for all the hooks
 	 */
 	public function get_hooks() {
 		if ( function_exists( "bw_trace_get_hook_links" ) ) {
@@ -345,6 +375,22 @@ class OIK_requests /* extends OIK_singleton */ {
 		}
 		return( $hooks );
 	}
+	
+	
+	/**
+	 * Return the saved queries
+	 * 
+	 * @return shortcode for all the queries
+	 */
+	public function get_queries() {
+		if ( function_exists( "bw_trace_get_saved_queries" ) ) {
+			$queries = bw_trace_get_saved_queries();
+		} else {
+			$queries = null;
+		}
+		return( $queries );
+	}
+		
 	
 	
 	/**
