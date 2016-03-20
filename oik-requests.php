@@ -2,8 +2,8 @@
 /**
 Plugin Name: oik-requests
 Plugin URI: http://www.oik-plugins.com/oik-plugins/oik-requests
-Description: WP-a2z REQUEST_URIs hooks and files
-Version: 0.0.0
+Description: WP-a2z REQUEST_URIs - hooks, files, queries, parms
+Version: 0.0.0-alpha.0317
 Author: bobbingwide
 Author URI: http://www.oik-plugins.com/author/bobbingwide
 License: GPLv2 or later
@@ -44,10 +44,8 @@ function oik_requests_loaded() {
 	add_action( "oik_fields_loaded", "oik_requests_oik_fields_loaded" );
 	add_filter( "oik_query_libs", "oik_requests_oik_query_libs" );
 	add_action( "run_oik-requests.php", "oik_requests_run_oik_requests" );
-	
 	add_filter( "oik_query_autoload_classes" , "oik_requests_oik_query_autoload_classes" );
-	
-	
+	add_filter( "posts_orderby", "oik_requests_posts_orderby", 10, 2 ); 
 }
 
 																	
@@ -228,6 +226,25 @@ function oik_requests_run_shutdown() {
 	gob();
 
 
+}
+
+/**
+ * Order archives by post title 
+ * 
+ * @TODO Consider what to do for "posts"
+ *
+ * @param string $orderby - current value of orderby
+ * @param object $query - a WP_Query object
+ * @return string the orderby we want
+ */
+function oik_requests_posts_orderby( $orderby, $query ) {
+	bw_trace2();
+	bw_backtrace();
+	global $wpdb;
+	if ( $query->is_post_type_archive ) {
+		$orderby = "$wpdb->posts.post_title asc";  
+	}
+	return( $orderby );
 }
 
 	

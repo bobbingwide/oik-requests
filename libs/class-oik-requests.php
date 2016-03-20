@@ -7,6 +7,7 @@
  * @TODO Decide whether or not it's worth creating OIK_post_type with basic CRUD methods
  * 
  * 
+ * 
  *
  */
 class OIK_requests /* extends OIK_singleton */ {
@@ -78,12 +79,93 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * 
 	 */
 	public function get_uri() {
-		$uri = bw_array_get( $_SERVER, 'REQUEST_URI', null );
-		$uri = $this->strip_siteurl_path( $uri );
-		if ( defined( 'DOING_AJAX') && DOING_AJAX ) {
-			$uri .= "/";
-			$uri .= bw_array_get( $_REQUEST, 'action', null );
-		}
+		if ( is_admin() ) {
+			$uri = bw_array_get( $_SERVER, 'REQUEST_URI', null );
+			$uri = $this->strip_siteurl_path( $uri );
+			if ( defined( 'DOING_AJAX') && DOING_AJAX ) {
+				$uri .= "/";
+				$uri .= bw_array_get( $_REQUEST, 'action', null );
+			}
+		} else {
+			$uri = $this->get_front_end_request();
+		}	
+		return( $uri );
+	}
+	
+	/**
+	 * We want to find the matched query that was performed right at the start
+	 * 
+	 * Can we rely on it still being set?
+	 * 
+	 * If the REQUEST_URI is not set then the global WP will be pretty empty
+	 * `
+    [public_query_vars] => Array
+    [private_query_vars] => Array
+    [extra_query_vars] => Array
+    [query_vars] => Array
+    [query_string] => 
+    [request] => 
+    [matched_rule] => 
+    [matched_query] => 
+    [did_permalink] => 
+    `
+	 * 
+	 
+	 * /home
+	 * 
+	 *     [query_vars] => Array
+        (
+            [page] => 
+            [pagename] => home
+        )
+
+    [query_string] => pagename=home
+    [request] => home
+    [matched_rule] => (.?.+?)(?:/([0-9]+))?/?$
+    [matched_query] => pagename=home&page=
+    [did_permalink] => 1
+		
+		
+		 [(.?.+?)/page/?([0-9]{1,})/?$] => index.php?pagename=$matches[1]&paged=$matches[2]
+            [(.?.+?)/comment-page-([0-9]{1,})/?$] => index.php?pagename=$matches[1]&cpage=$matches[2]
+            [(.?.+?)(?:/([0-9]+))?/?$] => index.php?pagename=$matches[1]&page=$matches[2]
+        )
+	
+	 *
+	     [REQUEST_URI] => /wordpress/home/
+			 
+			  [query_vars] => Array
+        (
+            [page] => 
+            [year] => 2016
+            [monthnum] => 03
+            [day] => 03
+            [name] => whos-breaking-this-link
+        )
+
+    [query_string] => year=2016&monthnum=03&day=03&name=whos-breaking-this-link
+    [request] => 2016/03/03/whos-breaking-this-link
+    [matched_rule] => ([0-9]{4})/([0-9]{1,2})/([0-9]{1,2})/([^/]+)(?:/([0-9]+))?/?$
+    [matched_query] => year=2016&monthnum=03&day=03&name=whos-breaking-this-link&page=
+    [did_permalink] => 1
+		
+	 */
+	
+	function get_front_end_request() {
+		global $wp;
+		bw_trace2( $wp, "global wp", false );
+		//$uri = "something front-endy"; 
+		//$uri = $wp->matched_rule;
+		$uri = $wp->matched_query;
+		$names = array();
+		$vars = explode( "&", $uri );
+		if ( count( $vars ) ) {
+			foreach ( $vars as $var ) {
+				$nvp = explode( "=", $var );
+				$names[] = $nvp[0];
+			}
+		}	
+		$uri = implode( "&", $names );
 		return( $uri );
 	}
 	
@@ -94,6 +176,8 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * It may also contain the sub-directory of the installation e.g. /wordpress/wp-admin
 	 *
 	 * So what do we do for the default request for the home page? Make it a / ?
+	 *
+	 * Note: The returned value is expected to have a leading '/'
 	 * 
 	 * @param string $uri - request URI which may contain the query parameters
 	 * @return string the stripped request URI
@@ -156,8 +240,9 @@ class OIK_requests /* extends OIK_singleton */ {
 	 */
 	public function insert_post( $uri, $parent ) {
 		bw_trace2();
+		$post_title = $this->get_post_title( $uri );
 		$post = array( "post_type" => "oik_request" 
-								, "post_title" => $this->get_post_title( $uri )
+								, "post_title" => $post_title
 								, "post_name" => $uri
 								, "post_content" => $this->get_content()
 								, "post_status" => "publish"
@@ -165,6 +250,7 @@ class OIK_requests /* extends OIK_singleton */ {
 								, "post_parent" => $parent
 								); 
 		$_POST['_oik_rq_uri'] = $uri;
+		$_POST['_oik_rq_label'] = $post_title;
 		$_POST['_oik_rq_parms'] = $this->get_query_parms();
 		$_POST['_oik_fileref' ] = $this->get_fileref(); 
 		$_POST['_oik_rq_method'] = $this->get_method();
@@ -172,7 +258,7 @@ class OIK_requests /* extends OIK_singleton */ {
 		$_POST['_oik_rq_files'] = $this->get_files();
 		$_POST['_oik_rq_hooks'] = $this->get_hooks();
 		$_POST['_oik_rq_queries'] = $this->get_queries();
-		
+		$_POST['_oik_rq_hits'] = 1;
 		
 	  $post_id = wp_insert_post( $post );
 		$this->get_yoastseo( $post_id );
@@ -186,9 +272,13 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * When it's all working fine then this may not be all that necessary
 	 * except when something has changed which would cause the results to be different.
 	 * 
-	 * It's the parms that we need to merge with the existing parms
+	 * It's the parms that we need to merge with the existing parms.
 	 * And the method may also take multiple values: GET, POST, HEAD, etc..
 	 * especially in the wonderful world of the REST API
+	 * 
+	 * 
+	 * Do not update the following fields:
+	 * _oik_rq_label
    * 
 	 * @param object $post the post object
 	 */
@@ -197,6 +287,7 @@ class OIK_requests /* extends OIK_singleton */ {
 	
 		//$_POST['_oik_rq_parms'] = $this->get_query_parms();
 		//$_POST['_oik_fileref' ] = $this->get_fileref(); 
+		
 		$_POST['_oik_rq_method'] = $this->get_method();
 		
 		$_POST['_oik_rq_files'] = $this->get_files();
@@ -231,19 +322,24 @@ class OIK_requests /* extends OIK_singleton */ {
 	public function record_request() {
 	
 		$uri = $this->get_uri();
-		$post = $this->get_request_by_name( $uri );	
-		$parent = $this->create_ancestry( $post, $uri );
+		if ( $uri ) {
+			$post = $this->get_request_by_name( $uri );	
+			$parent = $this->create_ancestry( $post, $uri );
 		
-		bw_trace2( $post, "post" );
-		if ( $post ) {
-			// perhaps we need to update it
-			// We should only update if the option to update is set to true
-			$post->post_parent = $parent;
-			$this->update_post( $post );
+			bw_trace2( $post, "post" );
+			if ( $post ) {
+				// perhaps we need to update it
+				// We should only update if the option to update is set to true
+				$post->post_parent = $parent;
+				$this->update_post( $post );
 			
-		}	else {
-			$this->insert_post( $uri, $parent );
-		}
+			}	else {
+				$this->insert_post( $uri, $parent );
+			}
+		} else {
+			// Don't do anything yet
+			bw_trace2( $uri, "empty uri - TBC", false );
+		}	
 	}
 	
 	/**
@@ -267,19 +363,20 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * Insert a dummy ancestor for a request
 	 * 
 	 * @param string $uri the part of the path
-	 * @param 
+	 * @param ID $parent post_ID for this post's parent. May be 0
 	 */
 	public function insert_ancestor( $uri, $parent ) {
 		bw_trace2();
 		$post = array( "post_type" => "oik_request" 
 								, "post_title" => $this->get_post_title( $uri )
 								, "post_name" => $uri
-								, "post_content" => $uri
+								, "post_content" => $this->ancestor_content()
 								, "post_status" => "publish"
 								, "comment_status" => "closed" 
 								, "post_parent" => $parent
 								); 
 		$_POST['_oik_rq_uri'] = $uri;
+		$_POST['_oik_rq_label'] = null;
 		// $_POST['_oik_rq_parms'] = $this->get_query_parms();
 		// $_POST['_oik_fileref' ] = $this->get_fileref(); 
 		// $_POST['_oik_rq_method'] = $this->get_method();
@@ -295,6 +392,17 @@ class OIK_requests /* extends OIK_singleton */ {
 	
 	
 	}
+	
+	/**
+	 * Return sensible content for an ancestor post
+	 *
+	 * @return string 
+	 */
+  function ancestor_content() {
+		$content = "[bw_field _oik_rq_label]<!-- more -->[bw_fields][bw_tree]";
+		return( $content );
+	}
+	
 	
 	
 	
@@ -381,30 +489,38 @@ class OIK_requests /* extends OIK_singleton */ {
 		$post_type = "oik_request";
 	
 		//add_post_type_support( $post_type, 'publicize' );
+		bw_register_field( "_oik_rq_label", "text", "Title", array( "#translatable" => 'default' ) );
 		bw_register_field( "_oik_rq_uri", "text", "Request URI" );
 		bw_register_field( "_oik_rq_parms", "serialized", "Query parameters" );
-		bw_register_field( "_oik_rq_method", "select", "Request method" );
+		bw_register_field( "_oik_rq_method", "select", "Request method", array( '#options' => $this->method_types(), '#multiple'=> 4, '#optional' => true ) );
 		
 		/*
 		 * These need to be paginatable shortcode textarea fields.
 		 * 
 		 */
-		bw_register_field( "_oik_rq_files", "sctextarea", "Files loaded", array( '#theme' => false) ); 
+		bw_register_field( "_oik_rq_files", "sctextarea", "Files loaded", array( '#theme' => true ) ); 
 		bw_register_field( "_oik_rq_hooks", "sctextarea", "Hooks invoked", array( '#theme' => false ) );
-		bw_register_field( "_oik_rq_queries", "sctextarea", "Saved queries" );
-		bw_register_field( "_oik_rq_hits", "numeric", "Hits" );
+		bw_register_field( "_oik_rq_queries", "sctextarea", "Saved queries", array( '#theme_null' => false ) );
+		bw_register_field( "_oik_rq_hits", "numeric", "Hits", array( "#theme_null" => false) );
 		
 		//bw_register_field( "_oik_rq_fileref", "noderef", 	- registered by oik-shortcodes
   
+		bw_register_field_for_object_type( "_oik_rq_label", $post_type );
 		bw_register_field_for_object_type( "_oik_rq_uri", $post_type );
-		bw_register_field_for_object_type( "_oik_rq_parms", $post_type );
+		
 		bw_register_field_for_object_type( "_oik_rq_method", $post_type );
+		bw_register_field_for_object_type( "_oik_rq_parms", $post_type );
 		
 		bw_register_field_for_object_type( "_oik_rq_files", $post_type );
 		bw_register_field_for_object_type( "_oik_rq_hooks", $post_type );
 		bw_register_field_for_object_type( "_oik_rq_queries", $post_type );
 		bw_register_field_for_object_type( "_oik_fileref", $post_type );
 		bw_register_field_for_object_type( "_oik_rq_hits", $post_type );
+	}
+	
+	function method_types() {
+		$methods = bw_assoc( bw_as_array( "GET,HEAD,POST,PUT,DELETE,TRACE,OPTIONS,CONNECT,PATCH" ) );
+		return( $methods );
 	}
 	
 	
@@ -424,6 +540,35 @@ class OIK_requests /* extends OIK_singleton */ {
 		return( $post_title );
 	}
 	
+	/**
+	 * Return the MultiLingual title for the post 
+	 *
+	 * Form the title from the URI and label using the separator provided
+	 * 
+	 * @param string $uri - non-translatable URI ( or part thereof )
+	 * @param string $label  - not yet translated.
+	 * @param string $sep	- separator
+	 * @return string ML title
+	 */
+	public function get_ml_title( $uri=null, $label=null, $sep=" - " ) {
+		bw_trace2();
+		$ml_title = $uri;
+		$ml_title .= $sep;
+		$ml_title .= __( $label, 'default' );
+		return( $ml_title );
+	}
+	
+	/**
+	 * Load the MultiLingual title for the post
+	 */
+	public function load_ml_title( $id ) {
+		$uri = get_post_meta( $id, "_oik_rq_uri", true );
+		$label = get_post_meta( $id, "_oik_rq_label", true );
+		$ml_title = $this->get_ml_title( $uri, $label );
+		bw_trace( $ml_title, "ml_title" );
+		return( $ml_title );
+	}
+	
 	
 	/**
 	 * Return the content for the oik_request post type
@@ -433,7 +578,8 @@ class OIK_requests /* extends OIK_singleton */ {
 	 */
 	public function get_content() {
 		$content= null;
-		$content .= $this->get_post_title();
+		//$content .= $this->get_post_title();
+		$content .= '[bw_field _oik_rq_label]';
 		$content .= "<!-- more -->";
 		$content .= "[bw_fields]";
 		//$content .= /// whatever oik-bwtrace does for files
@@ -448,12 +594,17 @@ class OIK_requests /* extends OIK_singleton */ {
 	 * 
 	 * WordPress SEO aka YoastSEO has a number of fields which, if not set
 	 * it goes away and attempts to determine from the content and excerpt.
+	 * 
 	 * This is time consuming at front-end runtime so we need to set the values ourselves.
+	 * 
+	 * For the time being we'll make the Focus KW the same as the meta description
+	 * 
 	 *
 	 */ 
 	public function get_yoastseo( $id ) {
-		$metadesc = $this->get_post_title();
+		$metadesc = $this->load_ml_title( $id );
 		update_post_meta( $id, "_yoast_wpseo_metadesc", $metadesc );
+		update_post_meta( $id, "_yoast_wpseo_focuskw", $metadesc );
 	}
 	
 	public function get_hits( $id, $increment=0 ) {
@@ -473,6 +624,7 @@ class OIK_requests /* extends OIK_singleton */ {
 	public function get_fileref() {
 		$name = $_SERVER['SCRIPT_NAME']; 	
 		$name = $this->strip_siteurl_path( $name );
+		$name = ltrim( $name, "/" );
 		oik_require( "admin/oik-files.php", "oik-shortcodes" );																					
 		$post_id = oiksc_get_oik_fileref( null, $name ); 
 		return( $post_id );
@@ -502,7 +654,6 @@ class OIK_requests /* extends OIK_singleton */ {
 		return( $files );
 	}
 	
-	
 	/**
 	 * Return the "hooks" shortcode
 	 * 
@@ -519,7 +670,6 @@ class OIK_requests /* extends OIK_singleton */ {
 		return( $hooks );
 	}
 	
-	
 	/**
 	 * Return the saved queries
 	 * 
@@ -533,7 +683,6 @@ class OIK_requests /* extends OIK_singleton */ {
 		}
 		return( $queries );
 	}
-		
 	
 	
 	/**
