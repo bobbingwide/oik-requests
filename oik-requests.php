@@ -3,7 +3,7 @@
 Plugin Name: oik-requests
 Plugin URI: http://www.oik-plugins.com/oik-plugins/oik-requests
 Description: WP-a2z REQUEST_URIs - hooks, files, queries, parms
-Version: 0.0.0-alpha.0317
+Version: 0.0.0-alpha.0320
 Author: bobbingwide
 Author URI: http://www.oik-plugins.com/author/bobbingwide
 License: GPLv2 or later
@@ -46,6 +46,9 @@ function oik_requests_loaded() {
 	add_action( "run_oik-requests.php", "oik_requests_run_oik_requests" );
 	add_filter( "oik_query_autoload_classes" , "oik_requests_oik_query_autoload_classes" );
 	add_filter( "posts_orderby", "oik_requests_posts_orderby", 10, 2 ); 
+	//add_filter( "post_limits", "oik_requests_post_limits", 10, 2 );
+	//add_filter( "pre_option_posts_per_page", "oik_requests_pre_option_posts_per_page", 10, 2 );
+	add_action( "pre_get_posts", "oik_requests_pre_get_posts" );
 }
 
 																	
@@ -247,5 +250,62 @@ function oik_requests_posts_orderby( $orderby, $query ) {
 	return( $orderby );
 }
 
+/**
+ * Increase the posts displayed on archives
+ * 
+ * This doesn't appear to be the right way to do it
+ * as we have to handle pagination as well
+ * unless we can update $query->posts_per_page as well
+ * 
+ * 
+ *
+ * @param string $limit e.g. 'LIMIT 0, 10'
+ * @param object $query the query object
+ * @return string currently an arbitrary limit of 100 per page
+ */
+function oik_requests_post_limits( $limit, $query ) {
+
+	bw_trace2();
+	bw_backtrace();
+	if ( $query->is_post_type_archive ) {
+	//	$limit = "LIMIT 0, 100";
+	}
+	return( $limit );
+}
+
+/**
+ * Implement 'pre_option_posts_per_page' filter
+ * 
+ * Don't do this as we don't know the context
+ */
+function oik_requests_pre_option_posts_per_page( $pre, $option ) {
+	bw_trace2();
+	bw_backtrace();
+	return( 20 );
+}
+
+/**
+ * Implement "pre_get_posts" action for
+ */
+
+function oik_requests_pre_get_posts( $query ) {
+	if ( $query->is_main_query() ) {
+	
+		if ( $query->is_archive() ) { 
+			bw_trace2();
+			switch ( $query->query['post_type'] ) {
+	
+				case "oik-plugins":
+					$query->set( 'posts_per_page', 20 );
+					break;
+				
+				default: 
+					$query->set( 'posts_per_page', 50 );
+			}	
+		} else {
+		}	
+	}	
+}
+				
 	
 
