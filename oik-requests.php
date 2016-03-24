@@ -49,6 +49,7 @@ function oik_requests_loaded() {
 	//add_filter( "post_limits", "oik_requests_post_limits", 10, 2 );
 	//add_filter( "pre_option_posts_per_page", "oik_requests_pre_option_posts_per_page", 10, 2 );
 	add_action( "pre_get_posts", "oik_requests_pre_get_posts" );
+	add_action( "oik_add_shortcodes", "oik_requests_oik_add_shortcodes" );
 }
 
 																	
@@ -306,6 +307,10 @@ function oik_requests_pre_get_posts( $query ) {
 		}	
 	}	
 }
+
+function oik_requests_oik_add_shortcodes() {
+	bw_add_shortcode( "bw_sql", "bw_sql", oik_path( "shortcodes/oik-sql.php", "oik-requests" ), false );
+}	
 				
 	
 
