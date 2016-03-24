@@ -499,8 +499,8 @@ class OIK_requests /* extends OIK_singleton */ {
 		 * 
 		 */
 		bw_register_field( "_oik_rq_files", "sctextarea", "Files loaded", array( '#theme' => true ) ); 
-		bw_register_field( "_oik_rq_hooks", "sctextarea", "Hooks invoked", array( '#theme' => false ) );
-		bw_register_field( "_oik_rq_queries", "sctextarea", "Saved queries", array( '#theme_null' => false ) );
+		bw_register_field( "_oik_rq_hooks", "sctextarea", "Hooks invoked", array( '#theme' => true ) );
+		bw_register_field( "_oik_rq_queries", "sctextarea", "Saved queries", array( '#theme_null' => false, '#theme' => false ) );
 		bw_register_field( "_oik_rq_hits", "numeric", "Hits", array( "#theme_null" => false) );
 		
 		//bw_register_field( "_oik_rq_fileref", "noderef", 	- registered by oik-shortcodes
