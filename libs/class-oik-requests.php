@@ -639,14 +639,12 @@ class OIK_requests /* extends OIK_singleton */ {
 	}
 	
 	/**
-	 * Return the [files] shortcode for this instance
+	 * Return the [files] shortcodes for this instance
 	 *
 	 * See oik-bwtrace
 	 */
-	
 	public function get_files() {
 		if ( function_exists( "bw_trace_get_included_files" ) ) {
-
 			$files = bw_trace_get_included_files();
 		} else {
 			$files = null;
@@ -655,9 +653,9 @@ class OIK_requests /* extends OIK_singleton */ {
 	}
 	
 	/**
-	 * Return the "hooks" shortcode
+	 * Return the "hooks" shortcodes
 	 * 
-	 * @return shortcode for all the hooks
+	 * @return shortcodes for all the hooks
 	 */
 	public function get_hooks() {
 		if ( function_exists( "bw_trace_get_hook_links" ) ) {
@@ -665,7 +663,6 @@ class OIK_requests /* extends OIK_singleton */ {
 			$hooks = bw_trace_get_hook_links( $bw_action_counts_tree );
 		} else {
 			$hooks = null;
-			gob();
 		}
 		return( $hooks );
 	}
