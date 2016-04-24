@@ -45,7 +45,7 @@ function oik_requests_loaded() {
 	add_filter( "oik_query_libs", "oik_requests_oik_query_libs" );
 	add_action( "run_oik-requests.php", "oik_requests_run_oik_requests" );
 	add_filter( "oik_query_autoload_classes" , "oik_requests_oik_query_autoload_classes" );
-	add_filter( "posts_orderby", "oik_requests_posts_orderby", 10, 2 ); 
+	//add_filter( "posts_orderby", "oik_requests_posts_orderby", 10, 2 ); 
 	//add_filter( "post_limits", "oik_requests_post_limits", 10, 2 );
 	//add_filter( "pre_option_posts_per_page", "oik_requests_pre_option_posts_per_page", 10, 2 );
 	add_action( "pre_get_posts", "oik_requests_pre_get_posts" );
@@ -286,7 +286,11 @@ function oik_requests_pre_option_posts_per_page( $pre, $option ) {
 }
 
 /**
- * Implement "pre_get_posts" action for
+ * Implement "pre_get_posts" action for oik-requests
+ * 
+ * This filter is not needed if we're using oik-types to override the posts_per_page 
+ *
+ * 
  */
 
 function oik_requests_pre_get_posts( $query ) {
